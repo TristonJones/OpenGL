@@ -34,11 +34,31 @@ bool GLRenderer::Init()
     std::cout << " Stencil Bits " << context.stencilBits << std::endl;
     std::cout << " Anti-aliasing: " << context.antialiasingLevel << std::endl << std::endl;
 
+	glShadeModel(GL_SMOOTH);
 	glClearDepth(1.0f);
 	glClearColor(0.0f, 0.5f, 0.5f, 1.0f);
+	glDepthFunc(GL_LEQUAL);
+	glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST);
 
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_BACK);
 	glEnable(GL_DEPTH_TEST);
 	glDepthMask(GL_TRUE);
+
+	//Lighting
+	GLfloat light_ambient[] = {0.5, 0.5, 0.5, 1.0};
+	GLfloat light_diffuse[] = {1.0, 1.0, 1.0, 1.0 };
+	GLfloat light_specular[] = {1.0, 1.0, 1.0, 1.0};
+	GLfloat light_position[] = {1.0, 1.0, 1.0, 0.0};
+
+	glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient);
+	glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse);
+	glLightfv(GL_LIGHT0, GL_SPECULAR, light_specular);
+	glLightfv(GL_LIGHT0, GL_POSITION, light_position);
+
+	glEnable(GL_LIGHTING);
+	glEnable(GL_LIGHT0);
+	glShadeModel(GL_SMOOTH);
 
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
@@ -82,10 +102,6 @@ void GLRenderer::Run()
 			{
 				std::cout << "Invalid command" << std::endl;
 			}
-			if(!Command("setpos Suzanne 0 0 -20"))
-			{
-				std::cout << "Invalid command" << std::endl;
-			}
 		}
 		
 		sf::Time time = clock.restart();
@@ -99,22 +115,18 @@ void GLRenderer::Run()
 
 void GLRenderer::Render(sf::Time &time)
 {
+	glPushMatrix();
+
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
+
+	/*glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();*/
 	for(int i = 0; i < objects.size(); i++)
 	{
-		glTranslatef(objects[i].position.x, objects[i].position.y, objects[i].position.z);
-		glBegin(GL_TRIANGLES);
-		{
-			for(int j = 0; j < objects[i].verticies.size(); j++)
-			{
-				glVertex3f(objects[i].verticies[j].x, objects[i].verticies[j].y,
-					objects[i].verticies[j].z);
-			}
-		}
-		glEnd();
+		objects[i].Draw();
 	}
+
+	glPopMatrix();
 }
 
 

@@ -5,7 +5,7 @@ bool CommandCenter::ProcessCommand(std::string cmd, std::vector<Object> &objects
 	std::string com = cmd.substr(0, cmd.find(" "));
 	if(com == "load")
 	{
-		return DataLoad::Load("C:/Users/Triston/Desktop/monkey.obj", objects);
+		return DataLoad::WaveFront::Load("untitled.obj", objects);
 	}
 	if(com == "setpos")
 	{

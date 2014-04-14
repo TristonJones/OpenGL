@@ -1,3 +1,6 @@
+#ifndef COMMANDCENTER_H
+#define COMMANDCENTER_H
+
 #include <iostream>
 #include <vector>
 #include <string>
@@ -9,3 +12,5 @@ namespace CommandCenter{
 
 	bool SetPos(int object, sf::Vector3f pos);
 }
+
+#endif //COMMANDCENTER_H

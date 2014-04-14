@@ -1,127 +1,248 @@
 #include "DataLoad.h"
 
 
-bool DataLoad::Load(const char *path, std::vector<Object> &objects)
+bool DataLoad::WaveFront::Load(const char *path, std::vector<Object> &objects)
 {
-	//std::string objectName;
-	std::vector<sf::Vector3f> faceV;
-	std::vector<sf::Vector3f> faceU;
-	std::vector<unsigned int> vertexI, uvI, normalI;
-	std::vector<sf::Vector3f> verts;
-	std::vector<sf::Vector2f> uvs;
-	std::vector<sf::Vector3f> norms;
+	materialIndex = -1;
 
-	const int lineLen = 256;
+	std::fstream file;
+	file.open(path);
 
-	Object o;
-
-	FILE *file = fopen(path, "r");
-	
-	if(file == NULL)
+	if(file.is_open())
 	{
-		std::cout << "Unable to load file: " << path << std::endl;
+		char line[256];
+
+		// Parse object file line by line
+		while(file.good())
+		{
+			file.getline(line, 255);
+			parseLine(line);
+		}
+
+		file.close();
+	}
+	else
+	{
+		std::cout << "Could not open WFObject file '" << path << "'\n";
+		return false;
+	}
+	objects.push_back(tempObj);
+	std::cout << "Object '" << tempObj.name << "' Created Sucessfully \n";
+	return true;
+}
+
+void Object::Draw()
+{
+	for(int i = 0; i < faces.size(); i++)
+	{
+		//Apply material 
+		glMaterialfv(GL_FRONT, GL_SPECULAR, materials[i].Ks);
+		glMaterialfv(GL_FRONT, GL_DIFFUSE, materials[i].Kd);
+		glMaterialfv(GL_FRONT, GL_AMBIENT, materials[i].Ka);
+		glMaterialf(GL_FRONT, GL_SHININESS, materials[i].Ns);
+
+		glBegin(GL_TRIANGLES);
+
+		for(int j = 0; j < faces[i].size(); j++)
+		{
+			glNormal3f(normals[faces[i][j].vnIndices.x - 1].x, 
+				normals[faces[i][j].vnIndices.x - 1].y,
+				normals[faces[i][j].vnIndices.x - 1].z);
+			glVertex3f(vertices[faces[i][j].vIndices.x - 1].x,
+				vertices[faces[i][j].vIndices.x - 1].y,
+				vertices[faces[i][j].vIndices.x - 1].z);
+
+			glNormal3f(normals[faces[i][j].vnIndices.y - 1].x, 
+				normals[faces[i][j].vnIndices.y - 1].y,
+				normals[faces[i][j].vnIndices.y - 1].z);
+			glVertex3f(vertices[faces[i][j].vIndices.y - 1].x,
+				vertices[faces[i][j].vIndices.y - 1].y,
+				vertices[faces[i][j].vIndices.y - 1].z);
+
+			glNormal3f(normals[faces[i][j].vnIndices.z - 1].x, 
+				normals[faces[i][j].vnIndices.z - 1].y,
+				normals[faces[i][j].vnIndices.z - 1].z);
+			glVertex3f(vertices[faces[i][j].vIndices.z - 1].x,
+				vertices[faces[i][j].vIndices.z - 1].y,
+				vertices[faces[i][j].vIndices.z - 1].z);
+		}
+
+		glEnd();
+	}
+}
+
+void DataLoad::WaveFront::parseLine(char *line)
+{
+	if(!strlen(line))
+	{
+		return;
+	}
+
+	char *type;
+	type = strtok(strdup(line), " ");
+
+	if(!strcmp(type, "o"))
+	{
+		sscanf(line, "o %s", tempObj.name.c_str());
+	}
+	else if(!strcmp(type, "v"))
+	{
+		parseVertex(line);
+	}
+	else if(!strcmp(type, "vn"))
+	{
+		parseNormal(line);
+	}
+	else if(!strcmp(type, "f"))
+	{
+		parseFace(line);
+	}
+	else if(!strcmp(type, "mtllib"))
+	{
+		char file[256];
+		sscanf(line, "mtllib %s", &file);
+
+		if(strlen(file))
+		{
+			loadMaterials(file);
+		}
+		else
+		{
+			std::cout << "Parse Error: Invalid mtllib" << std::endl;
+		}
+	}
+	else if(!strcmp(type, "usemtl"))
+	{
+		std::string name;
+		materialIndex++;
+		sscanf(line, "usemtl %s", name.c_str());
+
+		parseMaterial(name.c_str());
+		tempObj.faces.push_back(std::vector<Face>());
+	}
+	return;
+}
+
+void DataLoad::WaveFront::parseVertex(char *line)
+{
+	tempObj.vertices.push_back(sf::Vector3f());
+
+	sscanf(line, "v %f %f %f", &tempObj.vertices.back().x, &tempObj.vertices.back().y, &tempObj.vertices.back().z);
+
+	return;
+}
+
+void DataLoad::WaveFront::parseNormal(char *line)
+{
+	tempObj.normals.push_back(sf::Vector3f());
+
+	sscanf(line, "vn %f %f %f", &tempObj.normals.back().x, &tempObj.normals.back().y, &tempObj.normals.back().z);
+
+	return;
+}
+
+void DataLoad::WaveFront::parseFace(char *line)
+{
+	tempObj.faces[materialIndex].push_back(Face());
+
+	if(sscanf(line, "f %d//%d %d//%d %d//%d", 
+		&tempObj.faces[materialIndex].back().vIndices.x, &tempObj.faces[materialIndex].back().vnIndices.x,
+		&tempObj.faces[materialIndex].back().vIndices.y, &tempObj.faces[materialIndex].back().vnIndices.y,
+		&tempObj.faces[materialIndex].back().vIndices.z, &tempObj.faces[materialIndex].back().vnIndices.z) <= 1)
+	{
+		sscanf(line, "f %d/%d/%d %d/%d/%d %d/%d/%d",
+			&tempObj.faces[materialIndex].back().vIndices.x,
+			&tempObj.faces[materialIndex].back().vtIndices.x,
+			&tempObj.faces[materialIndex].back().vnIndices.x,
+			&tempObj.faces[materialIndex].back().vIndices.y,
+			&tempObj.faces[materialIndex].back().vtIndices.y,
+			&tempObj.faces[materialIndex].back().vnIndices.y,
+			&tempObj.faces[materialIndex].back().vIndices.z,
+			&tempObj.faces[materialIndex].back().vtIndices.z,
+			&tempObj.faces[materialIndex].back().vnIndices.z);
+	}
+
+	return;
+}
+
+int DataLoad::WaveFront::loadMaterials(char *filename)
+{
+	std::fstream file;
+
+	file.open(filename);
+	if(file.is_open())
+	{
+		char line[256];
+		while(file.getline(line, 256))
+		{
+			tempObj.mtlFile.push_back(line);
+		}
+	}
+	else
+	{
+		std::cout << "Unable to open mtl file '" << filename << "'\n";
 		return false;
 	}
 
-	while(1)
-	{
-		//Change to more than 256 later
-		char line[lineLen];
-		int res = fscanf(file, "%s", line);
-		if(res == EOF)
-			break;
-		else
-		{
-			//Load Object Name
-			if(strcmp(line, "o") == 0)
-			{
-				char n[128];
-				fscanf(file, "%s", n); 
-				o.name = n;
-				std::cout << n << std::endl;
-			}
-			//Load Vertex
-			if(strcmp(line, "v") == 0)
-			{
-				sf::Vector3f vertex;
-				fscanf(file, "%f %f %f\n", &vertex.x, &vertex.y, &vertex.z);
-				verts.push_back(vertex);
-			}
-			//Load UV
-			else if(strcmp(line, "vt") == 0)
-			{
-				sf::Vector2f uv;
-				fscanf(file, "%f %f\n", &uv.x, &uv.y);
-				uvs.push_back(uv);
-			}
-			//Load Normal
-			else if(strcmp(line, "vn") == 0)
-			{
-				sf::Vector3f normal;
-				fscanf(file, "%f %f %f\n", &normal.x, &normal.y, &normal.z);
-				norms.push_back(normal);
-			}
-			//Load Face
-			else if(strcmp(line, "f") == 0)
-			{
-				std::string test = line;
-				unsigned int vIndex[3], uIndex[3], nIndex[3]; 
-				if(test.find("//") != NULL)
-				{
-					//Read and store the indecies for the face data
-					int n = fscanf(file, "%d//%d %d//%d %d//%d\n", 
-						&vIndex[0], &nIndex[0], 
-						&vIndex[1], &nIndex[1], 
-						&vIndex[2], &nIndex[2]);
+	file.close();
+	return true;
+}
 
-					vertexI.push_back(vIndex[0]);
-					vertexI.push_back(vIndex[1]);
-					vertexI.push_back(vIndex[2]);
-					normalI.push_back(nIndex[0]);
-					normalI.push_back(nIndex[1]);
-					normalI.push_back(nIndex[2]);
-				}
-				else
+void DataLoad::WaveFront::parseMaterial(std::string mtlName)
+{
+	std::string name;
+	char *line = new char[256];
+	bool mtlFound = false;
+
+	for(int i = 0; i < tempObj.mtlFile.size(); i++)
+	{
+		strncpy(line, tempObj.mtlFile[i].c_str(), 256);
+
+		if(strlen(line))
+		{
+			if(sscanf(line, "newmtl %s", name.c_str()))
+			{
+				if(mtlFound)
 				{
-					int n = fscanf(file, "%d/%d/%d %d/%d/%d %d/%d/%d\n", 
-						&vIndex[0], &uIndex[0], &nIndex[0],
-						&vIndex[1], &uIndex[1], &nIndex[1], 
-						&vIndex[2], &uIndex[2], &nIndex[2]);
-					uvI.push_back(uIndex[0]);
-					uvI.push_back(uIndex[1]);
-					uvI.push_back(uIndex[2]);
-					vertexI.push_back(vIndex[0]);
-					vertexI.push_back(vIndex[1]);
-					vertexI.push_back(vIndex[2]);
-					normalI.push_back(nIndex[0]);
-					normalI.push_back(nIndex[1]);
-					normalI.push_back(nIndex[2]);
+					return;
+				}
+
+				if(!strcmp(mtlName.c_str(), name.c_str()))
+				{
+					mtlFound = true;
+					tempObj.materials.push_back(Material());
+				}
+			}
+			if(mtlFound)
+			{
+				if(line[0] == 'N' && line[1] == 's')
+				{
+					sscanf(line, "Ns %f", &tempObj.materials.back().Ns);
+				}
+				else if(line[0] == 'K' && line[1] == 'a')
+				{
+					sscanf(line, "Ka %f %f %f", 
+						&tempObj.materials.back().Ka[0],
+						&tempObj.materials.back().Ka[1],
+						&tempObj.materials.back().Ka[2]);
+				}
+				else if(line[0] == 'K' && line[1] == 'd')
+				{
+					sscanf(line, "Kd %f %f %f",
+						&tempObj.materials.back().Kd[0],
+						&tempObj.materials.back().Kd[1],
+						&tempObj.materials.back().Kd[2]);
+				}
+				else if(line[0] == 'K' && line[1] == 's')
+				{
+					sscanf(line, "Ks %f %f %f",
+						&tempObj.materials.back().Ks[0],
+						&tempObj.materials.back().Ks[1],
+						&tempObj.materials.back().Ks[2]);
 				}
 			}
 		}
 	}
-	for(unsigned int i = 0; i < vertexI.size(); i++)
-	{
-		sf::Vector3f vertex = verts[vertexI[i]-1];
-		o.verticies.push_back(vertex);
-		
-	}
-	for(unsigned int i = 0; i < uvI.size(); i++)
-	{
-		sf::Vector2f uv = uvs[uvI[i]-1];
-		o.uvs.push_back(uv);
-	}
-	for(unsigned int i = 0; i < normalI.size(); i++)
-	{
-		sf::Vector3f normal = norms[normalI[i]-1];
-		o.normals.push_back(normal);
-	}
-	o.position.x = 0.0f;
-	o.position.y = 0.0f;
-	o.position.z = 0.0f;
 
-	objects.push_back(o);
-
-	std::cout << "Load Sucessful" << std::endl;
-	return true;
+	return;
 }
